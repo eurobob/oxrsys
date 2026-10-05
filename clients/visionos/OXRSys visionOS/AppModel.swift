@@ -623,9 +623,12 @@ final class AppModel {
         controlChannel.connect(serverIP: serverAddress)
 
         startStatsTimer()
-        updateTrackingState()
 
+        // Set .streaming before updateTrackingState(): it starts ARKit only in that state. When
+        // it ran first, it saw .connecting and stopped tracking, so ARKit started only when the
+        // immersive space opened. The server got no tracking for 3 s and dropped the client.
         connectionState = .streaming
+        updateTrackingState()
         connectedAtNs = VideoReceiver.monotonicNs()
         wantsImmersiveSpace = autoEnterImmersiveOnConnect
         statusText = "Streaming from \(server.name) via \(serverAddress)"

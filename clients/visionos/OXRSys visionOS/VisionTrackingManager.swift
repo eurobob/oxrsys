@@ -354,7 +354,7 @@ final class VisionTrackingManager: @unchecked Sendable {
     }
 
     private func sampleTracking() {
-        guard running else { return }
+        guard running, worldTracking.state == .running else { return }
         let timestamp = CACurrentMediaTime()
         guard let deviceAnchor = worldTracking.queryDeviceAnchor(atTimestamp: timestamp) else { return }
 
