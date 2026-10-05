@@ -63,3 +63,27 @@ TEST_CASE("Client liveness: a zero activity clock never disconnects", "[client-l
     CHECK_FALSE(decision.disconnect);
     CHECK(decision.state.lastActivityNs == 0);
 }
+
+TEST_CASE("Client liveness: silence inside the startup grace keeps the client", "[client-liveness]")
+{
+    constexpr int64_t kGraceNs = 15'000 * kMs;
+    const int64_t connectedAt = 1'000 * kMs;
+    const ClientLivenessState prev{/*lastCountSeen=*/10, /*lastActivityNs=*/connectedAt};
+    // 5s after the connect with no new packet: past the 3s timeout, but inside the grace.
+    const auto inGrace = EvaluateClientLiveness(prev, /*currentCount=*/10,
+                                                /*nowNs=*/connectedAt + 5'000 * kMs, kTimeoutNs,
+                                                connectedAt, kGraceNs);
+    CHECK_FALSE(inGrace.disconnect);
+
+    // After the grace, the normal timeout applies again.
+    const auto afterGrace = EvaluateClientLiveness(prev, /*currentCount=*/10,
+                                                   /*nowNs=*/connectedAt + 15'001 * kMs, kTimeoutNs,
+                                                   connectedAt, kGraceNs);
+    CHECK(afterGrace.disconnect);
+
+    // Packets that arrive during the grace still move the clock forward.
+    const auto progressed = EvaluateClientLiveness(prev, /*currentCount=*/11,
+                                                   /*nowNs=*/connectedAt + 2'000 * kMs, kTimeoutNs,
+                                                   connectedAt, kGraceNs);
+    CHECK(progressed.state.lastActivityNs == connectedAt + 2'000 * kMs);
+}

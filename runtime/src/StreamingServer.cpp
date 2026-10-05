@@ -54,6 +54,10 @@ constexpr uint32_t kStreamConfigMaxRetries = 2;
 constexpr int64_t kClientLivenessTimeoutNs =
     std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::seconds(3)).count();
+// After a connect, give the client this long to start its tracking before the timeout applies.
+constexpr int64_t kClientStartupGraceNs =
+    std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::seconds(15)).count();
 
 int64_t SteadyClockNowNs()
 {
@@ -1749,6 +1753,7 @@ void StreamingServer::HandleClientConnect(const oxr::protocol::ClientConnect& cl
     UpdatePredictionHorizon();
 
     state_.store(State::Connected);
+    clientConnectedAtNs_.store(SteadyClockNowNs(), std::memory_order_relaxed);
     lastClientActivityNs_.store(SteadyClockNowNs(), std::memory_order_relaxed);
     lastTrackingCountSeen_.store(
         trackingReceiver_ ? trackingReceiver_->GetPacketCount() : 0, std::memory_order_relaxed);
@@ -1973,6 +1978,7 @@ void StreamingServer::HandleUsbClientConnect(const oxr::protocol::ClientConnect&
     UpdatePredictionHorizon();
 
     state_.store(State::Connected);
+    clientConnectedAtNs_.store(SteadyClockNowNs(), std::memory_order_relaxed);
     lastClientActivityNs_.store(SteadyClockNowNs(), std::memory_order_relaxed);
     lastTrackingCountSeen_.store(
         trackingReceiver_ ? trackingReceiver_->GetPacketCount() : 0, std::memory_order_relaxed);
@@ -2771,7 +2777,9 @@ void StreamingServer::CheckClientLiveness(int64_t nowNs)
         lastTrackingCountSeen_.load(std::memory_order_relaxed),
         lastClientActivityNs_.load(std::memory_order_relaxed)};
     const oxrsys::ClientLivenessDecision decision =
-        oxrsys::EvaluateClientLiveness(prev, count, nowNs, kClientLivenessTimeoutNs);
+        oxrsys::EvaluateClientLiveness(prev, count, nowNs, kClientLivenessTimeoutNs,
+                                       clientConnectedAtNs_.load(std::memory_order_relaxed),
+                                       kClientStartupGraceNs);
     lastTrackingCountSeen_.store(decision.state.lastCountSeen, std::memory_order_relaxed);
     lastClientActivityNs_.store(decision.state.lastActivityNs, std::memory_order_relaxed);
     if (decision.disconnect)

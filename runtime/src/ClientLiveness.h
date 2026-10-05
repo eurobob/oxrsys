@@ -31,9 +31,16 @@ struct ClientLivenessDecision
 // activity is older than timeoutNs — but only if activity was ever recorded
 // (lastActivityNs != 0), so a client that has produced no packets yet is never
 // disconnected on this path.
+//
+// While nowNs is less than startupGraceNs after connectedAtNs, the client is never
+// disconnected. A headset client starts its tracking session only after it connects, and
+// that start can take several seconds (the visionOS client waits for ARKit authorization
+// and the accessory provider), so the normal timeout would drop it before its first pose.
 inline ClientLivenessDecision EvaluateClientLiveness(const ClientLivenessState& prev,
                                                      uint64_t currentCount, int64_t nowNs,
-                                                     int64_t timeoutNs)
+                                                     int64_t timeoutNs,
+                                                     int64_t connectedAtNs = 0,
+                                                     int64_t startupGraceNs = 0)
 {
     ClientLivenessDecision decision;
     decision.state = prev;
@@ -43,7 +50,8 @@ inline ClientLivenessDecision EvaluateClientLiveness(const ClientLivenessState& 
         decision.state.lastActivityNs = nowNs;
         return decision;
     }
-    if (prev.lastActivityNs != 0 && nowNs - prev.lastActivityNs > timeoutNs)
+    const bool inStartupGrace = connectedAtNs != 0 && nowNs - connectedAtNs < startupGraceNs;
+    if (!inStartupGrace && prev.lastActivityNs != 0 && nowNs - prev.lastActivityNs > timeoutNs)
     {
         decision.disconnect = true;
     }

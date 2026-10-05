@@ -180,6 +180,7 @@ private:
     void CheckClientLiveness(int64_t nowNs);
     std::atomic<uint64_t> lastTrackingCountSeen_{0};
     std::atomic<int64_t> lastClientActivityNs_{0};
+    std::atomic<int64_t> clientConnectedAtNs_{0};
     void HandleLatencyReport(const oxr::protocol::LatencyReport& report);
     void HandleKeyframeRequest(const oxr::protocol::RequestKeyframe& request);
     void HandleStreamConfigAck(const oxr::protocol::StreamConfigAck& ack);
